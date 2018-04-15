@@ -15,7 +15,6 @@ def tokenize(text):
 
 def building_data(path):
 	"""function to build the dictionnary of the data"""
-	print('loading text ...')
 	list_of_reviews = []
 	list_of_attributes = []
 	# opening the file
@@ -50,8 +49,7 @@ def building_data(path):
 	    tokens = tokenize(sentence)
 	    vocabulary_full += tokens
 	    reviews_tokens.append(tokens)
-
-	print('building vocabulary ...')
+	
 	vocabulary = Counter(vocabulary_full)
 	vocabulary = sorted(vocabulary, key = vocabulary.get, reverse = True)
 	mapper = {token:index+1 for index, token in prog_bar(enumerate(vocabulary))}
@@ -144,26 +142,28 @@ def repeating_data(list_of_attributes, sequence_len = 76):
 	array = np.repeat(list_of_attributes, sequence_len, axis = 1)
 	return array
 
-def padding_review(review, padding_length):
+def padding_review(list_of_reviews, padding_length):
 	"""review is a list of tokens"""
-	review_len = len(review)
-	if review_len < padding_length:
-		to_pad = ['<pad>' for _ in range(padding_length - len(review))]
-	else : 
-		to_pad = []
-	padded_review = review + to_pad
-	return padded_review[:padding_length]
+	list_of_padded_reviews = []
+	for review in prog_bar(list_of_reviews):
+		review_len = len(review)
+		if review_len < padding_length:
+			to_pad = ['<pad>' for _ in range(padding_length - len(review))]
+		else : 
+			to_pad = []
+		padded_review = review + to_pad
+		list_of_padded_reviews.append(padded_review[:padding_length])
+	return np.array(list_of_padded_reviews)
 
 
-def mapping_reviews(list_of_reviews, mapper):
-
+def mapping_reviews(list_of_reviews, mapper, review_len = 76):
+	nb_of_samples = len(list_of_reviews)
 	mapped_tokens = []
 
-	for review in list_of_reviews:
+	for review in prog_bar(list_of_reviews):
 		mapped_review = []
 		for token in review:
-			mapped_review.append(mapper.get(token, mapper.get('<unk>')))
+			mapped_review.append(mapper.get(token, mapper.get('<unk>'))-1)
 		mapped_tokens.append(mapped_review)
-
-mapped_tokens = np.array(mapped_tokens, ndmin = 2)
-return mapped_tokens	
+	mapped_tokens = np.array(mapped_tokens, ndmin = 2).reshape(nb_of_samples, review_len)
+	return mapped_tokens	
