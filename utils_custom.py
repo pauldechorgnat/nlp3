@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from collections import Counter
 
 def length(sequence):
   used = tf.sign(tf.reduce_max(tf.abs(sequence), 2))
@@ -28,4 +29,36 @@ def loss_function(predictions, actual):
 			loss += np.log(prediction_probability)
 	return loss
 
-	
+def saving_model_architecture(model, path='model.json'):
+	json_model = model.to_json()
+	with open(path, 'w') as model_file:
+		model_file.write(json_model)
+	print('model architecture saved')
+
+def compute_bleu_score(actual_tokens, predicted_tokens):
+	actual_counter = Counter(actual_tokens)
+	predicted_counter = Counter(predicted_tokens)
+	bleu = 0
+	for token in predicted_counter.keys():
+		bleu += min(predicted_counter.get(token), actual_counter.get(token, 0))
+	bleu = bleu / len(actual_tokens)
+	return bleu
+
+def compute_rouge_score(actual_tokens, predicted_tokens, n = 1):
+	actual_n_grams = [tuple(actual_tokens[i:i+n]) for i in range(len(actual_tokens)-n+1)]
+	predicted_n_grams = [tuple(predicted_tokens[i:i+n]) for i in range(len(predicted_tokens)-n+1)]
+	rouge = 0
+	for n_gram in actual_n_grams:
+		if n_gram in predicted_n_grams:
+			rouge += 1
+	rouge = rouge/len(actual_n_grams) # in our case rouge precision and recall are the same as the length of the predictions are the same
+	return rouge
+
+if __name__=='__main__':
+	actual_tokens = ['the', 'cat', 'is', 'black', 'and', 'grey']
+	predicted_tokens = ['the', 'kitten', 'is', 'black', 'and', 'cute']
+	print(actual_tokens)
+	print(predicted_tokens)
+	print('bleu score : ', compute_bleu_score(actual_tokens, predicted_tokens))
+	print('rouge score : ', compute_rouge_score(actual_tokens, predicted_tokens, n = 2))
+
