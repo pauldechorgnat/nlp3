@@ -13,12 +13,12 @@ import argparse
 import tensorflow as tf
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense, Dropout, Input, LSTM, RepeatVector, Reshape, concatenate
-from keras.layers import RepeatVector, Dense, Activation, Input, Flatten, Reshape, Permute, Lambda, multiply
+from keras.layers import RepeatVector, Dense, Activation, Input, Flatten, Reshape, Permute, Lambda, multiply, dot
 from keras.models import model_from_json
 from keras.layers.merge import Concatenate
 from keras.models import Model
 from keras.utils.np_utils import to_categorical
-from keras.layers.wrappers import Bidirectional
+from keras.layers.wrappers import Bidirectional, TimeDistributed
 import keras.backend as K
 from utils_custom import *
 from generation_utils import *
@@ -50,6 +50,7 @@ if __name__=='__main__':
 	PATH_TO_OUTPUT = args.path_to_output
 	silent = args.silent == 'y'
 	EPOCHS = 100000
+	LSTM_NUMBER_UNITS = 20
 
 	# checking whether the mode is available
 	if MODE not in available_modes:
@@ -71,7 +72,7 @@ if __name__=='__main__':
 	print('###########################################')
 	print()
 
-	
+	debug = False
 
 	# loading the training data to build the mapper and get the size of the different sets
 	if not silent : 
@@ -92,20 +93,27 @@ if __name__=='__main__':
 
 	# loading or creating the model
 	if not PRETRAINED:
+		input_attributes = Input(shape = (PADDING_LENGTH, STATE_SIZE, ))
+		lstm1 = Bidirectional(LSTM(LSTM_NUMBER_UNITS, return_sequences = True, unroll = True))(input_attributes)
+		lstm2 = Bidirectional(LSTM(LSTM_NUMBER_UNITS, return_sequences = True, unroll = True))(lstm1)
+		dense = Dense(LSTM_NUMBER_UNITS, activation = 'relu')(lstm2)
+		dense = Dense(VOCABULARY_SIZE, activation = 'softmax')(dense)
+		model = Model(input_attributes, dense)
 
-		inputs = Input(shape = (PADDING_LENGTH, STATE_SIZE, ))
-		per = Permute((2,1))(inputs)
-		dense = Dense(PADDING_LENGTH, activation = 'softmax')(per)
-		dense = Permute((2,1))(dense)
-		attention = multiply([inputs, K.transpose(dense)])
-		lstm = Bidirectional(LSTM(LSTM_NUMBER_UNITS, return_sequences = True))(inputs)
-		lstm_with_attention = Bidirectional(LSTM(LSTM_NUMBER_UNITS, return_sequences = True))(inputs)
 
-		conc = concatenate([lstm, lstm_with_attention])
-
-		output = Dense(VOCABULARY_SIZE, activation = 'softmax', use_bias=False)(conc)
-
-		model = Model(inputs, output)
+		"""inputs = Input(shape = (PADDING_LENGTH, STATE_SIZE, ))
+								per = Permute((2,1))(inputs)
+								dense = Dense(PADDING_LENGTH, activation = 'softmax')(per)
+								dense = Permute((2,1))(dense)
+								attention = multiply([inputs, K.transpose(dense)])
+								lstm = Bidirectional(LSTM(LSTM_NUMBER_UNITS, return_sequences = True))(inputs)
+								lstm_with_attention = Bidirectional(LSTM(LSTM_NUMBER_UNITS, return_sequences = True))(inputs)
+						
+								conc = concatenate([lstm, lstm_with_attention])
+						
+								output = Dense(VOCABULARY_SIZE, activation = 'softmax', use_bias=False)(conc)
+						
+								model = Model(inputs, output)"""
 		saving_model_architecture(model, PATH_TO_ARCHITECTURE)
 		if not silent : print('model created')
 
@@ -168,8 +176,9 @@ if __name__=='__main__':
 		for index_epoch in range(1, EPOCHS+1):
 			list_of_batch_index = generate_batches_index(number_of_samples = VOCABULARY_SIZE, batch_size = 10)
 			for index_batch, batch_indexes in enumerate(list_of_batch_index):
-				model.fit(attributes[batch_indexes,:], to_categorical(reviews[batch_indexes,:], 
-					num_classes = VOCABULARY_SIZE), epochs = 10, verbose = False)
+				if debug : batch_indexes = [i for i in range(10)]
+				model.fit(attributes[batch_indexes,:], to_categorical(reviews[batch_indexes,:], num_classes = VOCABULARY_SIZE), 
+					epochs = 10, verbose = False)
 				if (index_batch % 10 == 0) and (not silent):
 
 
